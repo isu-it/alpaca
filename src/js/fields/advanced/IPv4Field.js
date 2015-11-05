@@ -21,8 +21,8 @@
         {
             this.base();
 
-            if (!this.schema.pattern)
-            {
+            if (!this.schema.pattern
+                || !(typeof(this.schema.pattern) === "string")) {
                 this.schema.pattern = Alpaca.regexps.ipv4;
             }
         },
