@@ -191,11 +191,18 @@ this["HandlebarsPrecompiled"]["web-display"]["control-any"] = Handlebars.templat
     + ((stack1 = (helpers.str || (depth0 && depth0.str) || helpers.helperMissing).call(depth0,(depth0 != null ? depth0.data : depth0),{"name":"str","hash":{},"data":data})) != null ? stack1 : "")
     + "</div>\n\n</script>";
 },"useData":true});
-this["HandlebarsPrecompiled"]["web-display"]["control-checkbox"] = Handlebars.template({"compiler":[6,">= 2.0.0-beta.1"],"main":function(depth0,helpers,partials,data) {
+this["HandlebarsPrecompiled"]["web-display"]["control-checkbox"] = Handlebars.template({"1":function(depth0,helpers,partials,data) {
+    var stack1;
+
+  return " - "
+    + ((stack1 = this.lambda(((stack1 = (depth0 != null ? depth0.options : depth0)) != null ? stack1.rightLabel : stack1), depth0)) != null ? stack1 : "");
+},"compiler":[6,">= 2.0.0-beta.1"],"main":function(depth0,helpers,partials,data) {
     var stack1;
 
   return "<script type=\"text/x-handlebars-template\">\n\n    <div>"
     + ((stack1 = (helpers.str || (depth0 && depth0.str) || helpers.helperMissing).call(depth0,(depth0 != null ? depth0.data : depth0),{"name":"str","hash":{},"data":data})) != null ? stack1 : "")
+    + " "
+    + ((stack1 = helpers['if'].call(depth0,((stack1 = (depth0 != null ? depth0.options : depth0)) != null ? stack1.rightLabel : stack1),{"name":"if","hash":{},"fn":this.program(1, data, 0),"inverse":this.noop,"data":data})) != null ? stack1 : "")
     + "</div>\n\n</script>";
 },"useData":true});
 this["HandlebarsPrecompiled"]["web-display"]["control-hidden"] = Handlebars.template({"compiler":[6,">= 2.0.0-beta.1"],"main":function(depth0,helpers,partials,data) {
