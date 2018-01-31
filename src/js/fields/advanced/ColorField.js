@@ -31,27 +31,28 @@
             }
 
             this.base();
-
-            // set up default spectrum settings
-            if (typeof(this.options.spectrum) === "undefined")
-            {
-                this.options.spectrum = {};
-            }
-            if (typeof(this.options.spectrum.showInput) === "undefined")
-            {
-                this.options.spectrum.showInput = true;
-            }
-            if (typeof(this.options.spectrum.showPalette) === "undefined")
-            {
-                this.options.spectrum.showPalette = true;
-            }
-            if (typeof(this.options.spectrum.preferredFormat) === "undefined")
-            {
-                this.options.spectrum.preferredFormat = "hex3";
-            }
-            if (typeof(this.options.spectrum.clickoutFiresChange) === "undefined")
-            {
-                this.options.spectrum.clickoutFiresChange = true;
+            if (self.spectrumAvailable){
+                // set up default spectrum settings
+                if (typeof(this.options.spectrum) === "undefined")
+                {
+                    this.options.spectrum = {};
+                }
+                if (typeof(this.options.spectrum.showInput) === "undefined")
+                {
+                    this.options.spectrum.showInput = true;
+                }
+                if (typeof(this.options.spectrum.showPalette) === "undefined")
+                {
+                    this.options.spectrum.showPalette = true;
+                }
+                if (typeof(this.options.spectrum.preferredFormat) === "undefined")
+                {
+                    this.options.spectrum.preferredFormat = "hex3";
+                }
+                if (typeof(this.options.spectrum.clickoutFiresChange) === "undefined")
+                {
+                    this.options.spectrum.clickoutFiresChange = true;
+                }
             }
         },
 
@@ -85,12 +86,18 @@
                     }, 100);
 
                     $(self.control).on('change.spectrum', function(e, tinycolor) {
-                        self.setValue(tinycolor.toHexString());
+                        var val = self.convertTinyColor(tinycolor);
+                        self.setValue(val);
                     });
                 }
 
                 callback();
             });
+        },
+
+        convertTinyColor: function(tinycolor)
+        {
+            return tinycolor.toHexString();
         },
 
         /* builder_helpers */

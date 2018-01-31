@@ -198,8 +198,8 @@ need to perform individual steps:
 
 ## Contributors
 
-Here is a long list of our project's Brothers in Arms.  These folks have made numerous contributions to Alpaca
-over the years:
+Here is a long list of our project's brothers and sisters in arms.  
+These folks have made numerous contributions to Alpaca over the years:
 
 + [@cloudcms](http://github.com/cloudcms)
 + [@uzquiano](http://github.com/uzquiano)
@@ -252,6 +252,24 @@ over the years:
 + [@simonemedasfedro](https://github.com/simonemedasfedro)
 + [@78Gills](https://github.com/78Gills)
 + [@PirateSteve](https://github.com/PirateSteve)
++ [@dthompsonza](https://github.com/dthompsonza)
++ [@ousou](https://github.com/ousou)
++ [@azahid](https://github.com/azahid)
++ [@neilyoung](https://github.com/neilyoung)
++ [@apanagio](https://github.com/apanagio)
++ [@marcostorto](https://github.com/marcostorto)
++ [@ToreOlavKristiansen](https://github.com/ToreOlavKristiansen)
++ [@sachatrauwaen](https://github.com/sachatrauwaen)
++ [@sfesiura](https://github.com/sfesiura)
++ [@Felttrip](https://github.com/Felttrip)
++ [@gertingold](https://github.com/gertingold)
++ [@sivapalan](https://github.com/sivapalan)
++ [@caluwaertp](https://github.com/caluwaertp)
++ [@ambischof](https://github.com/ambischof)
++ [@hcmabreu](https://github.com/hcmabreu)
++ [@AzuraGroup](https://github.com/AzuraGroup)
++ [@mlarman70](https://github.com/mlarman70)
++ [@christoph007](https://github.com/christoph007)
 
 ...and many others via the [Alpaca Web Site](http://www.alpacajs.org) and
 [Alpaca Issues](https://github.com/gitana/alpaca/issues)!

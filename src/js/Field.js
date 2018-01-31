@@ -140,9 +140,9 @@
             this.updateObservable = function()
             {
                 // update observable
-                if (this.data)
+                if (this.getValue())
                 {
-                    this.observable(this.path).set(this.data);
+                    this.observable(this.path).set(this.getValue());
                 }
                 else
                 {
@@ -311,10 +311,12 @@
          */
         setup: function() {
 
+            /*
             if (!this.initializing)
             {
                 this.data = this.getValue();
             }
+            */
 
             // ensures that we have a template descriptor picked for this field
             this.initTemplateDescriptor();
@@ -338,6 +340,11 @@
             if (Alpaca.isUndefined(this.options.showMessages)) {
                 this.options.showMessages = true;
             }
+        },
+
+        setupField: function(callback)
+        {
+            callback();
         },
 
         /**
@@ -538,12 +545,16 @@
 
             this.setup();
 
-            this._render(function() {
+            this.setupField(function() {
 
-                // trigger the render event
-                self.trigger("render");
+                self._render(function() {
 
-                callback();
+                    // trigger the render event
+                    self.trigger("render");
+
+                    callback();
+                });
+
             });
         },
 
@@ -621,6 +632,7 @@
                         }
 
                         self.form = form;
+                        var me = self;
 
                         // allow any post-rendering facilities to kick in
                         self.postRender(function() {
@@ -865,6 +877,11 @@
                         return false;
                     });
 
+                    // fire disable function
+                    if (self.disable) {
+                        self.disable();
+                    }
+
                 };
 
                 // readonly
@@ -1013,7 +1030,8 @@
             var self = this;
 
             // store back data
-            var _data = self.data = self.getValue();
+            var _externalData = self.getValue();
+            this.data = self.getValue();
 
             // remember this stuff
             var oldDomEl = self.domEl;
@@ -1045,72 +1063,75 @@
             // re-setup the field
             self.setup();
 
-            // render
-            self._render(function() {
+            self.setupField(function() {
 
-                // move ahead of marker
-                $(markerEl).before(self.field);
+                // render
+                self._render(function() {
 
-                // reset the domEl
-                self.domEl = oldDomEl;
+                    // move ahead of marker
+                    $(markerEl).before(self.field);
 
-                // copy classes from oldField onto field
-                var oldClasses = $(oldField).attr("class");
-                if (oldClasses) {
-                    $.each(oldClasses.split(" "), function(i, v) {
-                        if (v && !v.indexOf("alpaca-") === 0) {
-                            $(self.field).addClass(v);
-                        }
-                    });
-                }
+                    // reset the domEl
+                    self.domEl = oldDomEl;
 
-                // hide the old field
-                $(oldField).hide();
-
-                // remove marker
-                $(markerEl).remove();
-
-                // mark that we're refreshed
-                self.refreshed = true;
-
-                // this is apparently needed for objects and arrays
-                if (typeof(_data) !== "undefined")
-                {
-                    if (Alpaca.isObject(_data) || Alpaca.isArray(_data))
-                    {
-                        self.setValue(_data);
+                    // copy classes from oldField onto field
+                    var oldClasses = $(oldField).attr("class");
+                    if (oldClasses) {
+                        $.each(oldClasses.split(" "), function(i, v) {
+                            if (v && !v.indexOf("alpaca-") === 0) {
+                                $(self.field).addClass(v);
+                            }
+                        });
                     }
-                }
 
-                // fire the "ready" event
-                Alpaca.fireReady(self);
+                    // hide the old field
+                    $(oldField).hide();
 
-                if (callback)
-                {
-                    callback();
-                }
+                    // remove marker
+                    $(markerEl).remove();
 
-                // afterwards...
+                    // mark that we're refreshed
+                    self.refreshed = true;
 
-                // now clean up old field elements
-                // the trick here is that we want to make sure we don't trigger the bound "destroyed" event handler
-                // for the old dom el.
-                //
-                // the reason is that we have oldForm -> Field (with oldDomEl)
-                //                        and form -> Field (with domEl)
-                //
-                // cleaning up "oldDomEl" causes "Field" to cleanup which causes "oldForm" to cleanup
-                // which causes "Field" to cleanup which causes "domEl" to clean up (and also "form")
-                //
-                // here we just want to remove the dom elements for "oldDomEl" and "oldForm" without triggering
-                // the special destroyer event
-                //
-                // appears that we can do this with a second argument...?
-                //
-                $(oldField).remove(undefined, {
-                    "nodestroy": true
+                    // this is apparently needed for objects and arrays
+                    if (typeof(_externalData) !== "undefined")
+                    {
+                        if (Alpaca.isObject(_externalData) || Alpaca.isArray(_externalData))
+                        {
+                            self.setValue(_externalData);
+                        }
+                    }
+
+                    // fire the "ready" event
+                    Alpaca.fireReady(self);
+
+                    if (callback)
+                    {
+                        callback.call(self);
+                    }
+
+                    // afterwards...
+
+                    // now clean up old field elements
+                    // the trick here is that we want to make sure we don't trigger the bound "destroyed" event handler
+                    // for the old dom el.
+                    //
+                    // the reason is that we have oldForm -> Field (with oldDomEl)
+                    //                        and form -> Field (with domEl)
+                    //
+                    // cleaning up "oldDomEl" causes "Field" to cleanup which causes "oldForm" to cleanup
+                    // which causes "Field" to cleanup which causes "domEl" to clean up (and also "form")
+                    //
+                    // here we just want to remove the dom elements for "oldDomEl" and "oldForm" without triggering
+                    // the special destroyer event
+                    //
+                    // appears that we can do this with a second argument...?
+                    //
+                    $(oldField).remove(undefined, {
+                        "nodestroy": true
+                    });
+
                 });
-
             });
         },
 
@@ -1224,11 +1245,7 @@
         {
             var self = this;
 
-            var val = this.data;
-
-            val = self.ensureProperType(val);
-
-            return val;
+            return self.ensureProperType(this.data);
         },
 
         /**
@@ -1412,8 +1429,8 @@
             // add ourselves in last
             functions.push(functionBuilder(this, contexts));
 
-            // now run all of the functions
-            Alpaca.series(functions, function(err) {
+            // now run all of the functions in parallel
+            Alpaca.parallel(functions, function(err) {
 
                 // contexts now contains all of the validation results
 
@@ -1835,7 +1852,8 @@
         {
             var newValue = null;
 
-            if (this.data) {
+            if (this.data)
+            {
                 newValue = this.data;
             }
 
@@ -1985,7 +2003,7 @@
          */
         onChange: function(e) {
             // store back into data element
-            this.data = this.getValue();
+            //this.data = this.getValue();
             this.updateObservable();
             this.triggerUpdate();
         },
