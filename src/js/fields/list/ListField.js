@@ -224,6 +224,11 @@
         {
             var self = this;
 
+            // for legacy support, in case data was set to null, set back to []
+            if (this.data === null || typeof(this.data) === "undefined") {
+                this.data = [];
+            }
+
             var val = null;
 
             if (!self.schema.type || self.schema.type === "string")
@@ -234,6 +239,13 @@
                 }
 
                 val = array.join(",");
+            }
+            else if (self.schema.type === "number")
+            {
+                if (this.data.length > 0)
+                {
+                    val = this.data[0].value;
+                }
             }
             else if (self.schema.type === "boolean")
             {
@@ -311,9 +323,8 @@
             var values = [];
 
             var handled = false;
-            if (Alpaca.isEmpty(val))
+            if (Alpaca.isEmpty(val) || val === "")
             {
-                // keep empty array
                 handled = true;
             }
             else if (Alpaca.isString(val))

@@ -59,6 +59,12 @@
             {
                 self.options.multiselect.disableIfEmpty = true;
             }
+
+            // if we're in a display only mode, turn off multiselect
+            if (self.isDisplayOnly())
+            {
+                delete self.options.multiselect;
+            }
         },
 
         initControlEvents: function()
@@ -178,20 +184,14 @@
 
                     for (var i = 0; i < val.length; i++)
                     {
-                        newData.push(tempMap[val[i]]);
+                        newData.push(tempMap[val[i]].value);
                     }
 
                     // set value silently
                     self.setValue(newData, true);
 
                     self.refreshValidationState();
-                    self.trigger("change");
-
-                    /*
-                     self.updateObservable();
-                     self.triggerUpdate();
-                     self.refreshValidationState();
-                     */
+                    self.triggerWithPropagation("change");
                 };
 
                 $(self.control).change(function(e) {
@@ -201,6 +201,21 @@
                 callback();
 
             });
+        },
+
+        afterSetValue: function()
+        {
+            var self = this;
+
+            if (self.data.length > 0)
+            {
+                var values = [];
+                for (var i = 0; i < self.data.length; i++) {
+                    values.push(self.data[i].value);
+                }
+
+                $(self.control).val(values);
+            }
         },
 
         /**
