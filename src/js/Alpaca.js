@@ -67,41 +67,74 @@
         var optionsSource = null;
         var viewSource = null;
 
-        // hands back the field instance that is bound directly under the element el
-        var findExistingAlpacaBinding = function()
+        /**
+         * Finds the Alpaca field instance bound to the dom element.
+         *
+         * First considers the immediate dom element and then looks 1 level deep to children and then up to parent.
+         *
+         * @returns {*}
+         */
+        var findExistingAlpacaBinding = function(domElement, skipPivot)
         {
             var existing = null;
 
-            var topElements = $(el).find(":first");
-            if (topElements.length > 0)
+            // look at "data-alpaca-field-id"
+            var alpacaFieldId = $(domElement).attr("data-alpaca-field-id");
+            if (alpacaFieldId)
             {
-                // does a field binding exist?
-                var fieldId = $(topElements[0]).attr("data-alpaca-field-id");
-                if (fieldId)
+                var alpacaField = Alpaca.fieldInstances[alpacaFieldId];
+                if (alpacaField)
                 {
-                    var _existing = Alpaca.fieldInstances[fieldId];
-                    if (_existing) {
-                        existing = _existing;
-                    }
+                    existing = alpacaField;
                 }
-                else
+            }
+
+            // if not found, look at "data-alpaca-form-id"
+            if (!existing)
+            {
+                var formId = $(domElement).attr("data-alpaca-form-id");
+                if (formId)
                 {
-                    // does a form binding exist?
-                    var formId = $(topElements[0]).attr("data-alpaca-form-id");
-                    if (formId)
+                    var subElements = $(domElement).find(":first");
+                    if (subElements.length > 0)
                     {
-                        var subElements = $(topElements[0]).find(":first");
-                        if (subElements.length > 0)
+                        var subFieldId = $(subElements[0]).attr("data-alpaca-field-id");
+                        if (subFieldId)
                         {
-                            var subFieldId = $(subElements[0]).attr("data-alpaca-field-id");
-                            if (subFieldId)
+                            var subField = Alpaca.fieldInstances[subFieldId];
+                            if (subField)
                             {
-                                var _existing = Alpaca.fieldInstances[subFieldId];
-                                if (_existing) {
-                                    existing = _existing;
-                                }
+                                existing = subField;
                             }
                         }
+                    }
+                }
+            }
+
+            // if not found, check for children 0th element
+            if (!existing && !skipPivot)
+            {
+                var childDomElements = $(el).find(":first");
+                if (childDomElements.length > 0)
+                {
+                    var childField = findExistingAlpacaBinding(childDomElements[0], true);
+                    if (childField)
+                    {
+                        existing = childField;
+                    }
+                }
+            }
+
+            // if not found, check parent
+            if (!existing && !skipPivot)
+            {
+                var parentEl = $(el).parent();
+                if (parentEl)
+                {
+                    var parentField = findExistingAlpacaBinding(parentEl, true);
+                    if (parentField)
+                    {
+                        existing = parentField;
                     }
                 }
             }
@@ -112,7 +145,7 @@
         var specialFunctionNames = ["get", "exists", "destroy"];
         var isSpecialFunction = (args.length > 1 && Alpaca.isString(args[1]) && (specialFunctionNames.indexOf(args[1]) > -1));
 
-        var existing = findExistingAlpacaBinding();
+        var existing = findExistingAlpacaBinding(el);
         if (existing || isSpecialFunction)
         {
             if (isSpecialFunction)
@@ -225,6 +258,9 @@
             }
 
             var ConnectorClass = Alpaca.getConnectorClass(connectorId);
+            if (!ConnectorClass) {
+                ConnectorClass = Alpaca.getConnectorClass("default");
+            }
             connector = new ConnectorClass(connectorId, connectorConfig);
         }
 
@@ -278,6 +314,28 @@
             if (!field.parent)
             {
                 field.observableScope = Alpaca.generateId();
+            }
+
+            // if we are the top-most control
+            // fire "ready" event on every control
+            // go down depth first and fire to lowest controls before trickling back up
+            var fireReady = function(_field)
+            {
+                if (_field.children && _field.children.length > 0)
+                {
+                    for (var g = 0; g < _field.children.length; g++)
+                    {
+                        fireReady(_field.children[g]);
+                    }
+                }
+
+                _field.trigger("ready");
+            };
+            if (!field.parent)
+            {
+                fireReady(field);
+
+                // field.triggerWithPropagation.call(field, "ready", "down");
             }
 
             // if top level and focus has not been specified, then auto-set
@@ -795,6 +853,21 @@
          * Whether to set focus by default
          */
         defaultFocus: true,
+
+        /**
+         * The default sort function to use for enumerations.
+         */
+        defaultSort: function(a, b) {
+
+            if (a.text > b.text) {
+                return 1;
+            }
+            else if (a.text < b.text) {
+                return -1;
+            }
+
+            return 0;
+        },
 
         /**
          * Sets the default Locale.
@@ -1872,12 +1945,6 @@
                             }
                         }
                         */
-
-                        if (!field.parent)
-                        {
-                            // trigger event: ready
-                            field.triggerWithPropagation.call(field, "ready", "down");
-                        }
 
                         // TEST - swap code
                         // swap placeholder -> el
@@ -4780,6 +4847,27 @@
 
         return value;
     };
+
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Moment.js static
+    //
+    ////////////////////////////////////////////////////////////////////////////////////////////////
+
+    Alpaca.moment = function() {
+
+        if (!Alpaca._moment) {
+            if (window.moment) {
+                Alpaca._moment = window.moment;
+            }
+        }
+
+        if (!Alpaca._moment) {
+            throw new Error("The moment.js library has not been included, cannot produce moment object");
+        }
+
+        return Alpaca._moment.call(this, arguments);
+    }
 
     ////////////////////////////////////////////////////////////////////////////////////////////////
     //

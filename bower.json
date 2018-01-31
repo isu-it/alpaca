@@ -1,7 +1,7 @@
 {
   "name": "alpaca",
   "description": "Alpaca provides the easiest and fastest way to generate interactive forms for the web and mobile devices. It runs simply as HTML5 or more elaborately using Bootstrap, jQuery Mobile or jQuery UI. Alpaca uses Handlebars to process JSON schema and provide developers with an extensible framework for implementing controls, wizards, layouts, I18N support and an custom data persistence.",
-  "version": "1.5.14",
+  "version": "1.5.15",
   "main": "dist/alpaca/bootstrap/alpaca.js",
   "license": "Apache-2.0",
   "keywords": [
@@ -43,6 +43,7 @@
     "blueimp-tmpl": "2.5.4",
     "bootstrap": "3.3.2",
     "bootstrap-multiselect": "0.9.9",
+    "bootstrap-tokenfield": "0.12.1",
     "ckeditor": "4.4.1",
     "datatables": "1.10.5",
     "datatables-plugins": "https://github.com/DataTables/Plugins.git",

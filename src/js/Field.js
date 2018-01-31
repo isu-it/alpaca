@@ -170,38 +170,68 @@
             {
                 var self = this;
 
-                if (typeof(val) !== "undefined")
+                var _ensure = function(v, type)
                 {
-                    if (Alpaca.isString(val))
+                    if (Alpaca.isString(v))
                     {
-                        if (self.schema.type === "number")
+                        if (type === "number")
                         {
-                            val = parseFloat(val);
+                            v = parseFloat(v);
                         }
-                        else if (self.schema.type === "boolean")
+                        else if (type === "integer")
                         {
-                            if (val === "" || val.toLowerCase() === "false") {
-                                val = false;
+                            v = parseInt(v);
+                        }
+                        else if (type === "boolean")
+                        {
+                            if (v === "" || v.toLowerCase() === "false")
+                            {
+                                v = false;
                             }
-                            else {
-                                val = true;
+                            else
+                            {
+                                v = true;
                             }
                         }
                     }
-                    else if (Alpaca.isNumber(val))
+                    else if (Alpaca.isNumber(v))
                     {
-                        if (self.schema.type === "string")
+                        if (type === "string")
                         {
-                            val = "" + val;
+                            v = "" + v;
                         }
-                        else if (self.schema.type === "boolean")
+                        else if (type === "boolean")
                         {
-                            if (val === -1 || val === 0) {
-                                val = false;
+                            if (v === -1 || v === 0)
+                            {
+                                v = false;
                             }
                             else {
-                                val = true;
+                                v = true;
                             }
+                        }
+                    }
+
+                    return v;
+                };
+
+                if (typeof(val) !== "undefined")
+                {
+                    if (Alpaca.isArray(val))
+                    {
+                        for (var i = 0; i < val.length; i++)
+                        {
+                            if (self.schema.items && self.schema.items.type)
+                            {
+                                val[i] = _ensure(val[i], self.schema.items.type);
+                            }
+                        }
+                    }
+                    else if (Alpaca.isString(val) || Alpaca.isNumber(val))
+                    {
+                        if (self.schema.type)
+                        {
+                            val = _ensure(val, self.schema.type);
                         }
                     }
                 }
@@ -350,7 +380,11 @@
                 event = null;
             }
 
-            if (!direction || direction === "up")
+            if (!direction) {
+                direction = "up";
+            }
+
+            if (direction === "up")
             {
                 // we trigger ourselves first
                 this.trigger.call(this, name, event);
@@ -493,6 +527,9 @@
             this.setup();
 
             this._render(function() {
+
+                // trigger the render event
+                self.trigger("render");
 
                 callback();
             });
@@ -983,6 +1020,9 @@
             // reset domEl so that we're rendering into the right place
             //self.domEl = self.field.parent();
 
+            // mark that we are initializing
+            this.initializing = true;
+
             // re-setup the field
             self.setup();
 
@@ -999,9 +1039,6 @@
                 {
                     $(self._oldFieldEl).remove();
                 }
-
-                // trigger event: ready
-                self.triggerWithPropagation("ready", "down");
 
                 if (callback)
                 {
@@ -1790,9 +1827,19 @@
 
                         if (Alpaca.isFunction(func))
                         {
-                            _this.field.on(event, function(e) {
-                                func.call(_this,e);
-                            });
+                            if (event === "render" || event === "ready" || event === "blur" || event === "focus")
+                            {
+                                _this.on(event, function(e, a, b, c) {
+                                    func.call(_this, e, a, b, c);
+                                })
+                            }
+                            else
+                            {
+                                // legacy support
+                                _this.field.on(event, function(e) {
+                                    func.call(_this,e);
+                                });
+                            }
                         }
                     });
                 }
@@ -1895,15 +1942,28 @@
                 {
                     var pathElement = pathArray[i];
 
-                    if (pathElement.indexOf("[") === 0)
+                    var _name = pathElement;
+                    var _index = -1;
+
+                    var z1 = pathElement.indexOf("[");
+                    if (z1 >= 0)
                     {
-                        // index into an array
-                        var index = parseInt(pathElement.substring(1, pathElement.length - 1), 10);
-                        current = current.children[index];
+                        var z2 = pathElement.indexOf("]", z1 + 1);
+                        if (z2 >= 0)
+                        {
+                            _index = parseInt(pathElement.substring(z1 + 1, z2));
+                            _name = pathElement.substring(0, z1);
+                        }
                     }
-                    else
+
+                    if (_name)
                     {
-                        current = current.childrenByPropertyId[pathElement];
+                        current = current.childrenByPropertyId[_name];
+
+                        if (_index > -1)
+                        {
+                            current = current.children[_index];
+                        }
                     }
                 }
 
@@ -1911,6 +1971,74 @@
             }
 
             return result;
+        },
+
+        /**
+         * Retrieves an array of Alpaca controls by their Alpaca field type (i.e. "text", "checkbox", "ckeditor")
+         * This does a deep traversal across the graph of Alpaca field instances.
+         *
+         * @param fieldType
+         * @returns {Array}
+         */
+        getControlsByFieldType: function(fieldType) {
+
+            var array = [];
+
+            if (fieldType)
+            {
+                var f = function(parent, fieldType, array)
+                {
+                    for (var i = 0; i < parent.children.length; i++)
+                    {
+                        if (parent.children[i].getFieldType() === fieldType)
+                        {
+                            array.push(parent.children[i]);
+                        }
+
+                        if (parent.children[i].isContainer())
+                        {
+                            f(parent.children[i], fieldType, array);
+                        }
+                    }
+                };
+                f(this, fieldType, array);
+            }
+
+            return array;
+        },
+
+        /**
+         * Retrieves an array of Alpaca controls by their schema type (i.e. "string", "number").
+         * This does a deep traversal across the graph of Alpaca field instances.
+         *
+         * @param schemaType
+         * @returns {Array}
+         */
+        getControlsBySchemaType: function(schemaType) {
+
+            var array = [];
+
+            if (schemaType)
+            {
+                var f = function(parent, schemaType, array)
+                {
+                    for (var i = 0; i < parent.children.length; i++)
+                    {
+                        if (parent.children[i].getType() === schemaType)
+                        {
+                            array.push(parent.children[i]);
+                        }
+
+                        if (parent.children[i].isContainer())
+                        {
+                            f(parent.children[i], schemaType, array);
+                        }
+                    }
+                };
+                f(this, schemaType, array);
+            }
+
+            return array;
         },
 
         /////////////////////////////////////////////////////////////////////////////////////////////////
