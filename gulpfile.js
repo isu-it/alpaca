@@ -1069,7 +1069,9 @@ gulp.task("npmpackage", function(cb) {
 });
 
 gulp.task("_deploy", function(cb) {
-    runSequence("default", "site", "dist", "npmpackage", function () {
+    // we don't need to build the site or create the npmpackage
+    //runSequence("default", "site", "dist", "npmpackage", function () {
+    runSequence("default", "dist", function () {
         cb();
     });
 });
