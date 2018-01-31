@@ -77,6 +77,7 @@ var paths = {
             "src/js/fields/advanced/AddressField.js",
             "src/js/fields/advanced/CKEditorField.js",
             "src/js/fields/advanced/ColorField.js",
+            "src/js/fields/advanced/ColorPickerField.js",
             "src/js/fields/advanced/CountryField.js",
             "src/js/fields/advanced/CurrencyField.js",
             "src/js/fields/advanced/DateField.js",
@@ -1035,4 +1036,10 @@ gulp.task("update-release-txt", function() {
         .pipe(rename("license.txt"))
         .pipe(gulp.dest("."));
 
+});
+
+gulp.task("full", function(cb) {
+    runSequence("default", "site", "server", function () {
+        cb();
+    });
 });
