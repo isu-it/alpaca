@@ -8,9 +8,14 @@ legend.alpaca-container-label
     margin-top: 0px;
 }
 
-.alpaca-array-toolbar
+.alpaca-array-toolbar.alpaca-array-toolbar-position-top
 {
     margin-bottom: 10px;
+}
+
+.alpaca-array-toolbar.alpaca-array-toolbar-position-bottom
+{
+    margin-top: 10px;
 }
 
 .alpaca-array-actionbar
@@ -31,6 +36,11 @@ legend.alpaca-container-label
 .alpaca-array-actionbar, .alpaca-array-actionbar.btn-group
 {
     width: 100%;
+}
+
+.alpaca-array-actionbar
+{
+    overflow: hidden;
 }
 
 .alpaca-field-object
@@ -309,3 +319,15 @@ legend.alpaca-container-label
     margin-top: 20px;
 }
 
+.alpaca-control.disabled label
+{
+    color: #aaa;
+}
+
+.alpaca-required-indicator
+{
+    padding-left: 5px;
+    font-style: italic;
+    font-weight: 200;
+    color: #888;
+}

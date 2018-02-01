@@ -140,9 +140,9 @@
             this.updateObservable = function()
             {
                 // update observable
-                if (this.data)
+                if (this.getValue())
                 {
-                    this.observable(this.path).set(this.data);
+                    this.observable(this.path).set(this.getValue());
                 }
                 else
                 {
@@ -170,38 +170,68 @@
             {
                 var self = this;
 
-                if (typeof(val) !== "undefined")
+                var _ensure = function(v, type)
                 {
-                    if (Alpaca.isString(val))
+                    if (Alpaca.isString(v))
                     {
-                        if (self.schema.type === "number")
+                        if (type === "number")
                         {
-                            val = parseFloat(val);
+                            v = parseFloat(v);
                         }
-                        else if (self.schema.type === "boolean")
+                        else if (type === "integer")
                         {
-                            if (val === "" || val.toLowerCase() === "false") {
-                                val = false;
+                            v = parseInt(v);
+                        }
+                        else if (type === "boolean")
+                        {
+                            if (v === "" || v.toLowerCase() === "false")
+                            {
+                                v = false;
                             }
-                            else {
-                                val = true;
+                            else
+                            {
+                                v = true;
                             }
                         }
                     }
-                    else if (Alpaca.isNumber(val))
+                    else if (Alpaca.isNumber(v))
                     {
-                        if (self.schema.type === "string")
+                        if (type === "string")
                         {
-                            val = "" + val;
+                            v = "" + v;
                         }
-                        else if (self.schema.type === "boolean")
+                        else if (type === "boolean")
                         {
-                            if (val === -1 || val === 0) {
-                                val = false;
+                            if (v === -1 || v === 0)
+                            {
+                                v = false;
                             }
                             else {
-                                val = true;
+                                v = true;
                             }
+                        }
+                    }
+
+                    return v;
+                };
+
+                if (typeof(val) !== "undefined")
+                {
+                    if (Alpaca.isArray(val))
+                    {
+                        for (var i = 0; i < val.length; i++)
+                        {
+                            if (self.schema.items && self.schema.items.type)
+                            {
+                                val[i] = _ensure(val[i], self.schema.items.type);
+                            }
+                        }
+                    }
+                    else if (Alpaca.isString(val) || Alpaca.isNumber(val))
+                    {
+                        if (self.schema.type)
+                        {
+                            val = _ensure(val, self.schema.type);
                         }
                     }
                 }
@@ -281,10 +311,12 @@
          */
         setup: function() {
 
+            /*
             if (!this.initializing)
             {
                 this.data = this.getValue();
             }
+            */
 
             // ensures that we have a template descriptor picked for this field
             this.initTemplateDescriptor();
@@ -308,6 +340,19 @@
             if (Alpaca.isUndefined(this.options.showMessages)) {
                 this.options.showMessages = true;
             }
+
+            // support for "hidden" field on schema
+            if (typeof(this.options.hidden) === "undefined")
+            {
+                if (typeof(this.schema.hidden) !== "undefined") {
+                    this.options.hidden = this.schema.hidden;
+                }
+            }
+        },
+
+        setupField: function(callback)
+        {
+            callback();
         },
 
         /**
@@ -330,18 +375,90 @@
         },
 
         /**
-         * Triggers an event and propagates the event up the parent chain.
+         * Unregisters all listeners for an event.
+         *
+         * @param name
+         */
+        off: function(name)
+        {
+            if (this._events[name]) {
+                this._events[name].length = 0;
+            }
+        },
+
+        /**
+         * Triggers an event and propagates the event.
+         *
+         * By default, the behavior is to propagate up to the parent chain (bubble up).
+         *
+         * If "direction" is set to "down" and the field is a container, then the event is propagated down
+         * to children (trickle down).
+         *
+         * If "direction" is set to "both", then both up and down are triggered.
          *
          * @param name
          * @param event
+         * @param direction (optional) see above
          */
-        triggerWithPropagation: function(name, event)
+        triggerWithPropagation: function(name, event, direction)
         {
-            this.trigger.call(this, name, event);
+            if (typeof(event) === "string") {
+                direction = event;
+                event = null;
+            }
 
-            if (this.parent)
+            if (!direction) {
+                direction = "up";
+            }
+
+            if (direction === "up")
             {
-                this.parent.triggerWithPropagation.call(this.parent, name, event);
+                // we trigger ourselves first
+                this.trigger.call(this, name, event);
+
+                // then we trigger parents
+                if (this.parent)
+                {
+                    this.parent.triggerWithPropagation.call(this.parent, name, event, direction);
+                }
+            }
+            else if (direction === "down")
+            {
+                // do any children first
+                if (this.children && this.children.length > 0)
+                {
+                    for (var i = 0; i < this.children.length; i++)
+                    {
+                        var child = this.children[i];
+
+                        child.triggerWithPropagation.call(child, name, event, direction);
+                    }
+                }
+
+                // do ourselves last
+                this.trigger.call(this, name, event);
+            }
+            else if (direction === "both")
+            {
+                // do any children first
+                if (this.children && this.children.length > 0)
+                {
+                    for (var i = 0; i < this.children.length; i++)
+                    {
+                        var child = this.children[i];
+
+                        child.triggerWithPropagation.call(child, name, event, "down");
+                    }
+                }
+
+                // then do ourselves
+                this.trigger.call(this, name, event);
+
+                // then we trigger parents
+                if (this.parent)
+                {
+                    this.parent.triggerWithPropagation.call(this.parent, name, event, "up");
+                }
             }
         },
 
@@ -405,6 +522,8 @@
          */
         render: function(view, callback)
         {
+            var self = this;
+
             if (view && (Alpaca.isString(view) || Alpaca.isObject(view)))
             {
                 this.view.setView(view);
@@ -434,7 +553,17 @@
 
             this.setup();
 
-            this._render(callback);
+            this.setupField(function() {
+
+                self._render(function() {
+
+                    // trigger the render event
+                    self.trigger("render");
+
+                    callback();
+                });
+
+            });
         },
 
         calculateName: function()
@@ -478,14 +607,6 @@
         {
             var self = this;
 
-            /*
-            // remove the previous "field" element if it exists
-            if (self.field)
-            {
-                $(self.field).remove();
-            }
-            */
-
             // check if it needs to be wrapped in a form
             if (self.options.form && Alpaca.isObject(self.options.form))
             {
@@ -496,8 +617,9 @@
                 {
                     form = new Alpaca.Form(self.domEl, this.options.form, self.view.id, self.connector, self.errorCallback);
                 }
-
                 form.render(function(form) {
+
+                    // NOTE: form is the form instance (not the jquery element)
 
                     var tempFieldHolder = $("<div></div>");
 
@@ -518,6 +640,7 @@
                         }
 
                         self.form = form;
+                        var me = self;
 
                         // allow any post-rendering facilities to kick in
                         self.postRender(function() {
@@ -526,10 +649,12 @@
                             self.initializing = false;
 
                             // allow for form to do some late updates
-                            if (self.form)
-                            {
-                                self.form.afterInitialize();
-                            }
+                            self.form.afterInitialize();
+
+                            // when the field removes, remove the form as well
+                            $(self.field).bind('destroyed', function (e) {
+                                self.form.destroy();
+                            });
 
                             // callback
                             if (callback && Alpaca.isFunction(callback))
@@ -660,9 +785,6 @@
                 }
             }
 
-            // remove the previous "field" element if it exists
-            self._oldFieldEl = self.field;
-
             this.field = renderedDomElement;
             this.field.appendTo(parentEl);
 
@@ -762,6 +884,11 @@
                         e.stopImmediatePropagation();
                         return false;
                     });
+
+                    // fire disable function
+                    if (self.disable) {
+                        self.disable();
+                    }
 
                 };
 
@@ -910,40 +1037,111 @@
         {
             var self = this;
 
-            self.refreshed = true;
+            // store back data
+            var _externalData = self.getValue();
+            this.data = self.getValue();
 
-            // insert element before current field to mark where we'll render
+            // remember this stuff
+            var oldDomEl = self.domEl;
+            var oldField = self.field;
+            //var oldControl = self.control;
+            //var oldContainer = self.container;
+            //var oldForm = self.form;
+
+            // insert marker element before current field to mark where we'll render
             var markerEl = $("<div></div>");
-            $(self.field).before(markerEl);
+            $(oldField).before(markerEl);
 
             // temp domEl
-            self.domEl = $("<div></div>");
+            self.domEl = $("<div style='display: none'></div>");
+            // clear this stuff out
+            self.field = undefined;
+            self.control = undefined;
+            self.container = undefined;
+            self.form = undefined;
 
-            // reset domEl so that we're rendering into the right place
-            //self.domEl = self.field.parent();
+            // disable all buttons on our current field
+            // we do this because repeated clicks could cause trouble while the field is in some half-state
+            // during refresh
+            $(oldField).find("button").prop("disabled", true);
+
+            // mark that we are initializing
+            this.initializing = true;
 
             // re-setup the field
             self.setup();
 
-            self._render(function() {
+            self.setupField(function() {
 
-                // move ahead of marker
-                $(markerEl).before(self.domEl.children());
+                // render
+                self._render(function() {
 
-                // remove marker
-                $(markerEl).remove();
+                    // move ahead of marker
+                    $(markerEl).before(self.field);
 
-                // clean up old field element if exists
-                if (self._oldFieldEl)
-                {
-                    $(self._oldFieldEl).remove();
-                }
+                    // reset the domEl
+                    self.domEl = oldDomEl;
 
-                if (callback)
-                {
-                    callback();
-                }
+                    // copy classes from oldField onto field
+                    var oldClasses = $(oldField).attr("class");
+                    if (oldClasses) {
+                        $.each(oldClasses.split(" "), function(i, v) {
+                            if (v && !v.indexOf("alpaca-") === 0) {
+                                $(self.field).addClass(v);
+                            }
+                        });
+                    }
 
+                    // hide the old field
+                    $(oldField).hide();
+
+                    // remove marker
+                    $(markerEl).remove();
+
+                    // mark that we're refreshed
+                    self.refreshed = true;
+
+                    /*
+                    // this is apparently needed for objects and arrays
+                    if (typeof(_externalData) !== "undefined")
+                    {
+                        if (Alpaca.isObject(_externalData) || Alpaca.isArray(_externalData))
+                        {
+                            self.setValue(_externalData, true);
+                        }
+                    }
+                    */
+
+                    // fire the "ready" event
+                    Alpaca.fireReady(self);
+
+                    if (callback)
+                    {
+                        callback.call(self);
+                    }
+
+                    // afterwards...
+
+                    // now clean up old field elements
+                    // the trick here is that we want to make sure we don't trigger the bound "destroyed" event handler
+                    // for the old dom el.
+                    //
+                    // the reason is that we have oldForm -> Field (with oldDomEl)
+                    //                        and form -> Field (with domEl)
+                    //
+                    // cleaning up "oldDomEl" causes "Field" to cleanup which causes "oldForm" to cleanup
+                    // which causes "Field" to cleanup which causes "domEl" to clean up (and also "form")
+                    //
+                    // here we just want to remove the dom elements for "oldDomEl" and "oldForm" without triggering
+                    // the special destroyer event
+                    //
+                    // appears that we can do this with a second argument...?
+                    //
+                    $(oldField).remove(undefined, {
+                        "nodestroy": true
+                    });
+
+                });
             });
         },
 
@@ -1057,11 +1255,7 @@
         {
             var self = this;
 
-            var val = this.data;
-
-            val = self.ensureProperType(val);
-
-            return val;
+            return self.ensureProperType(this.data);
         },
 
         /**
@@ -1079,7 +1273,14 @@
             // special case - if we're in a display mode and not first render, then do a refresh here
             if (this.isDisplayOnly() && !this.initializing)
             {
-                this.refresh();
+                if (this.top && this.top() && this.top().initializing)
+                {
+                    // if we're rendering under a top most control that isn't finished initializing, then don't refresh
+                }
+                else
+                {
+                    this.refresh();
+                }
             }
         },
 
@@ -1189,6 +1390,8 @@
          */
         refreshValidationState: function(validateChildren, cb)
         {
+            // console.log("Call refreshValidationState: " + this.path);
+
             var self = this;
 
             // run validation context compilation for ourselves and optionally any children
@@ -1200,9 +1403,12 @@
             {
                 return function(callback)
                 {
-                    Alpaca.compileValidationContext(field, function(context) {
-                        contexts.push(context);
-                        callback();
+                    // run on the next tick
+                    Alpaca.nextTick(function() {
+                        Alpaca.compileValidationContext(field, function(context) {
+                            contexts.push(context);
+                            callback();
+                        });
                     });
                 };
             };
@@ -1233,8 +1439,8 @@
             // add ourselves in last
             functions.push(functionBuilder(this, contexts));
 
-            // now run all of the functions
-            Alpaca.series(functions, function(err) {
+            // now run all of the functions in parallel
+            Alpaca.parallel(functions, function(err) {
 
                 // contexts now contains all of the validation results
 
@@ -1487,6 +1693,23 @@
         },
 
         /**
+         * @returns {boolean} whether the field is disabled
+         */
+        isDisabled: function()
+        {
+            // OVERRIDE
+            return false;
+        },
+
+        /**
+         * @returns {boolean} whether the field is enabled
+         */
+        isEnabled: function()
+        {
+            return !this.isDisabled();
+        },
+
+        /**
          * Focuses on the field.
          *
          * If a callback is provided, the callback receives the control focused upon.
@@ -1575,7 +1798,7 @@
         },
 
         isShown: function() {
-            return this.isVisible();
+            return !this.isHidden();
         },
 
         isVisible: function() {
@@ -1639,7 +1862,8 @@
         {
             var newValue = null;
 
-            if (this.data) {
+            if (this.data)
+            {
                 newValue = this.data;
             }
 
@@ -1726,9 +1950,19 @@
 
                         if (Alpaca.isFunction(func))
                         {
-                            _this.field.on(event, function(e) {
-                                func.call(_this,e);
-                            });
+                            if (event === "render" || event === "ready" || event === "blur" || event === "focus")
+                            {
+                                _this.on(event, function(e, a, b, c) {
+                                    func.call(_this, e, a, b, c);
+                                })
+                            }
+                            else
+                            {
+                                // legacy support
+                                _this.field.on(event, function(e) {
+                                    func.call(_this,e);
+                                });
+                            }
                         }
                     });
                 }
@@ -1779,7 +2013,7 @@
          */
         onChange: function(e) {
             // store back into data element
-            this.data = this.getValue();
+            //this.data = this.getValue();
             this.updateObservable();
             this.triggerUpdate();
         },
@@ -1831,15 +2065,28 @@
                 {
                     var pathElement = pathArray[i];
 
-                    if (pathElement.indexOf("[") === 0)
+                    var _name = pathElement;
+                    var _index = -1;
+
+                    var z1 = pathElement.indexOf("[");
+                    if (z1 >= 0)
                     {
-                        // index into an array
-                        var index = parseInt(pathElement.substring(1, pathElement.length - 1), 10);
-                        current = current.children[index];
+                        var z2 = pathElement.indexOf("]", z1 + 1);
+                        if (z2 >= 0)
+                        {
+                            _index = parseInt(pathElement.substring(z1 + 1, z2));
+                            _name = pathElement.substring(0, z1);
+                        }
                     }
-                    else
+
+                    if (_name)
                     {
-                        current = current.childrenByPropertyId[pathElement];
+                        current = current.childrenByPropertyId[_name];
+
+                        if (_index > -1)
+                        {
+                            current = current.children[_index];
+                        }
                     }
                 }
 
@@ -1847,6 +2094,74 @@
             }
 
             return result;
+        },
+
+        /**
+         * Retrieves an array of Alpaca controls by their Alpaca field type (i.e. "text", "checkbox", "ckeditor")
+         * This does a deep traversal across the graph of Alpaca field instances.
+         *
+         * @param fieldType
+         * @returns {Array}
+         */
+        getControlsByFieldType: function(fieldType) {
+
+            var array = [];
+
+            if (fieldType)
+            {
+                var f = function(parent, fieldType, array)
+                {
+                    for (var i = 0; i < parent.children.length; i++)
+                    {
+                        if (parent.children[i].getFieldType() === fieldType)
+                        {
+                            array.push(parent.children[i]);
+                        }
+
+                        if (parent.children[i].isContainer())
+                        {
+                            f(parent.children[i], fieldType, array);
+                        }
+                    }
+                };
+                f(this, fieldType, array);
+            }
+
+            return array;
+        },
+
+        /**
+         * Retrieves an array of Alpaca controls by their schema type (i.e. "string", "number").
+         * This does a deep traversal across the graph of Alpaca field instances.
+         *
+         * @param schemaType
+         * @returns {Array}
+         */
+        getControlsBySchemaType: function(schemaType) {
+
+            var array = [];
+
+            if (schemaType)
+            {
+                var f = function(parent, schemaType, array)
+                {
+                    for (var i = 0; i < parent.children.length; i++)
+                    {
+                        if (parent.children[i].getType() === schemaType)
+                        {
+                            array.push(parent.children[i]);
+                        }
+
+                        if (parent.children[i].isContainer())
+                        {
+                            f(parent.children[i], schemaType, array);
+                        }
+                    }
+                };
+                f(this, schemaType, array);
+            }
+
+            return array;
         },
 
         /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -2397,7 +2712,7 @@
                     "optionLabels": {
                         "type": "array",
                         "items": {
-                            "type": "string"
+                            "type": "text"
                         }
                     },
                     "view": {
