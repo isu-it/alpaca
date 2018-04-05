@@ -21884,6 +21884,8 @@ this["HandlebarsPrecompiled"]["bootstrap-edit"]["message"] = Handlebars.template
                     }
                 }
 
+                self.populateDisplayableText(model);
+
                 callback();
             };
 
@@ -21919,9 +21921,6 @@ this["HandlebarsPrecompiled"]["bootstrap-edit"]["message"] = Handlebars.template
                 {
                     completionFn();
                 }
-
-                self.populateDisplayableText(model);
-
 
             });
         },

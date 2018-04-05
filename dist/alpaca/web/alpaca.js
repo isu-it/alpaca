@@ -21028,6 +21028,8 @@ this["HandlebarsPrecompiled"]["web-edit"]["wizard"] = Handlebars.template({"1":f
                     }
                 }
 
+                self.populateDisplayableText(model);
+
                 callback();
             };
 
@@ -21063,9 +21065,6 @@ this["HandlebarsPrecompiled"]["web-edit"]["wizard"] = Handlebars.template({"1":f
                 {
                     completionFn();
                 }
-
-                self.populateDisplayableText(model);
-
 
             });
         },

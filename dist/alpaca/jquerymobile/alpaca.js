@@ -21557,6 +21557,8 @@ this["HandlebarsPrecompiled"]["jquerymobile-edit"]["message"] = Handlebars.templ
                     }
                 }
 
+                self.populateDisplayableText(model);
+
                 callback();
             };
 
@@ -21592,9 +21594,6 @@ this["HandlebarsPrecompiled"]["jquerymobile-edit"]["message"] = Handlebars.templ
                 {
                     completionFn();
                 }
-
-                self.populateDisplayableText(model);
-
 
             });
         },
