@@ -21562,8 +21562,6 @@ this["HandlebarsPrecompiled"]["jquerymobile-edit"]["message"] = Handlebars.templ
 
             this.base(model, function() {
 
-                self.populateDisplayableText(model);
-
                 if (self.options.dataSource)
                 {
                     // clear the array
@@ -21594,6 +21592,9 @@ this["HandlebarsPrecompiled"]["jquerymobile-edit"]["message"] = Handlebars.templ
                 {
                     completionFn();
                 }
+
+                self.populateDisplayableText(model);
+
 
             });
         },

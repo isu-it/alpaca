@@ -21889,8 +21889,6 @@ this["HandlebarsPrecompiled"]["bootstrap-edit"]["message"] = Handlebars.template
 
             this.base(model, function() {
 
-                self.populateDisplayableText(model);
-
                 if (self.options.dataSource)
                 {
                     // clear the array
@@ -21921,6 +21919,9 @@ this["HandlebarsPrecompiled"]["bootstrap-edit"]["message"] = Handlebars.template
                 {
                     completionFn();
                 }
+
+                self.populateDisplayableText(model);
+
 
             });
         },

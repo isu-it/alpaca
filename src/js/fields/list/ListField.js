@@ -134,12 +134,12 @@
                     }
                 }
 
+                self.populateDisplayableText(model);
+
                 callback();
             };
 
             this.base(model, function() {
-
-                self.populateDisplayableText(model);
 
                 if (self.options.dataSource)
                 {

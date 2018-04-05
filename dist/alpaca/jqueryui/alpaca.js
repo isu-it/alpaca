@@ -21033,8 +21033,6 @@ this["HandlebarsPrecompiled"]["web-edit"]["wizard"] = Handlebars.template({"1":f
 
             this.base(model, function() {
 
-                self.populateDisplayableText(model);
-
                 if (self.options.dataSource)
                 {
                     // clear the array
@@ -21065,6 +21063,9 @@ this["HandlebarsPrecompiled"]["web-edit"]["wizard"] = Handlebars.template({"1":f
                 {
                     completionFn();
                 }
+
+                self.populateDisplayableText(model);
+
 
             });
         },
