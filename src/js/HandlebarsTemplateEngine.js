@@ -148,6 +148,25 @@
 
         return html;
     };
+    helpers["showMessage"] = function(key, options)
+    {
+        var value = key;
+
+        // if the key starts with "msg:", then load external
+        if (key && key.indexOf("msg:") === 0)
+        {
+            value = key = key.substring(4);
+
+            // can we load the value externally?
+            var externalValue = Alpaca.externalMessage(key);
+            if (externalValue)
+            {
+                value = externalValue;
+            }
+        }
+
+        return new Handlebars.SafeString(value);
+    };
     Handlebars.registerHelper("arrayToolbar", helpers["arrayToolbar"]);
     Handlebars.registerHelper("arrayActionbar", helpers["arrayActionbar"]);
 
@@ -236,8 +255,6 @@
 
     });
 
-
-
     //Handlebars.registerHelper("each", helpers["each"]);
     Handlebars.registerHelper("compare", helpers["compare"]);
     Handlebars.registerHelper("control", helpers["control"]);
@@ -256,7 +273,8 @@
     // ifnot
     Handlebars.registerHelper("ifnot", helpers["ifnot"]);
 
-    var partials = {};
+    // message
+    Handlebars.registerHelper("showMessage", helpers["showMessage"]);
 
     Alpaca.HandlebarsTemplateEngine = Alpaca.AbstractTemplateEngine.extend(
     {
@@ -314,8 +332,7 @@
             }
             catch (e)
             {
-                callback(e);
-                return;
+                return callback(e);
             }
 
             callback();

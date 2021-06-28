@@ -32,6 +32,10 @@
 
             this.containerItemTemplateDescriptor = self.view.getTemplateDescriptor("container-" + containerItemTemplateType + "-item", self);
 
+            if (typeof(this.options.dragAndDrop) === "undefined") {
+                this.options.dragAndDrop = Alpaca.isEmpty(this.view.dragAndDrop) ? Alpaca.defaultDragAndDrop : this.view.dragAndDrop;
+            }
+
             if (!this.options.toolbarStyle) {
                 this.options.toolbarStyle = Alpaca.isEmpty(this.view.toolbarStyle) ? "button" : this.view.toolbarStyle;
             }
@@ -301,8 +305,12 @@
         setValue: function(data)
         {
             var self = this;
+            
+            if (!data) {
+                data = [];
+            }
 
-            if (!data || !Alpaca.isArray(data))
+            if (!Alpaca.isArray(data))
             {
                 return;
             }
@@ -322,7 +330,7 @@
                     }
                     else
                     {
-                        self.removeItem(i);
+                        self.removeItem(i, null, true);
                     }
                 }
             }
@@ -332,7 +340,7 @@
             // then we need to add the new fields
             if (i < data.length)
             {
-                self.resolveItemSchemaOptions(function(itemSchema, itemOptions, circular) {
+                self.resolveItemSchemaOptions(function(itemSchema, itemOptions, circularityCheck) {
 
                     if (!itemSchema)
                     {
@@ -341,9 +349,10 @@
 
                     // we only allow addition if the resolved schema isn't circularly referenced
                     // or the schema is optional
-                    if (circular)
+                    if (circularityCheck && circularityCheck.circular)
                     {
-                        return Alpaca.throwErrorWithCallback("Circular reference detected for schema: " + JSON.stringify(itemSchema), self.errorCallback);
+                        circularityCheck.object = self.top().options;
+                        return Alpaca.throwReferenceCircularityError(circularityCheck, self.errorCallback);
                     }
 
                     // waterfall functions
@@ -424,13 +433,14 @@
 
                 // all items within the array have the same schema and options
                 // so we only need to load this once
-                self.resolveItemSchemaOptions(function(itemSchema, itemOptions, circular) {
+                self.resolveItemSchemaOptions(function(itemSchema, itemOptions, circularityCheck) {
 
                     // we only allow addition if the resolved schema isn't circularly referenced
                     // or the schema is optional
-                    if (circular)
+                    if (circularityCheck && circularityCheck.circular)
                     {
-                        return Alpaca.throwErrorWithCallback("Circular reference detected for schema: " + JSON.stringify(itemSchema), self.errorCallback);
+                        circularityCheck.object = self.top().options;
+                        return Alpaca.throwReferenceCircularityError(circularityCheck, self.errorCallback);
                     }
 
                     // waterfall functions
@@ -531,7 +541,8 @@
                             "name": control.name,
                             "parentFieldId": self.getId(),
                             "actionbarStyle": self.options.actionbarStyle,
-							"toolbarLocation": self.options.toolbarLocation,
+                            "toolbarLocation": self.options.toolbarLocation,
+                            "dragAndDrop": self.options.dragAndDrop,
                             "view": self.view,
                             "data": itemData
                         });
@@ -588,14 +599,14 @@
         {
             var _this = this;
 
-            var completionFunction = function(resolvedItemSchema, resolvedItemOptions, circular)
+            var completionFunction = function(resolvedItemSchema, resolvedItemOptions, circularityCheck)
             {
                 // special caveat:  if we're in read-only mode, the child must also be in read-only mode
-                if (_this.options.readonly) {
+                if (_this.options.readonly && resolvedItemOptions) {
                     resolvedItemOptions.readonly = true;
                 }
 
-                callback(resolvedItemSchema, resolvedItemOptions, circular);
+                callback(resolvedItemSchema, resolvedItemOptions, circularityCheck);
             };
 
             var itemOptions;
@@ -612,69 +623,79 @@
             }
 
             // handle $ref
-            if (itemSchema && itemSchema["$ref"])
+            var schemaRef = null;
+            if (itemSchema) {
+                schemaRef = itemSchema["$ref"];
+            }
+            var optionsRef = null;
+            if (itemOptions) {
+                optionsRef = itemOptions["$ref"];
+            }
+
+            if (schemaRef || optionsRef)
             {
-                var schemaReferenceId = itemSchema["$ref"];
-                var optionsReferenceId = itemSchema["$ref"];
-                if (itemOptions["$ref"]) {
-                    optionsReferenceId = itemOptions["$ref"];
+                // safety check for circularity on schema $ref
+                if (schemaRef)
+                {
+                    var circularityCheckResult1 = Alpaca.assertNonCircularSchemaReferences(this, schemaRef);
+                    if (circularityCheckResult1 && circularityCheckResult1.circular)
+                    {
+                        return Alpaca.nextTick(function() {
+                            completionFunction(null, null, circularityCheckResult1);
+                        });
+                    }
                 }
 
-                var topField = this;
-                var fieldChain = [topField];
-                while (topField.parent)
+                // safety check for circularity on options $ref
+                if (optionsRef)
                 {
-                    topField = topField.parent;
-                    fieldChain.push(topField);
+                    var circularityCheckResult2 = Alpaca.assertNonCircularOptionsReferences(this, optionsRef);
+                    if (circularityCheckResult2 && circularityCheckResult2.circular)
+                    {
+                        return Alpaca.nextTick(function() {
+                            completionFunction(null, null, circularityCheckResult2);
+                        });
+                    }
                 }
+
+                var topField = this.top();
 
                 var originalItemSchema = itemSchema;
                 var originalItemOptions = itemOptions;
 
-                Alpaca.loadRefSchemaOptions(topField, schemaReferenceId, optionsReferenceId, function(itemSchema, itemOptions) {
+                var topConnector = topField.connector;
+                var topSchema = topField.schema;
+                var topOptions = topField.options;
+                var schemaReferenceCacheFn = Alpaca.schemaReferenceCacheFn;
+                var optionsReferenceCacheFn = Alpaca.optionsReferenceCacheFn;
 
-                    // walk the field chain to see if we have any circularity
-                    var refCount = 0;
-                    for (var i = 0; i < fieldChain.length; i++)
-                    {
-                        if (fieldChain[i].schema)
-                        {
-                            if ( (fieldChain[i].schema.id === schemaReferenceId) || (fieldChain[i].schema.id === "#" + schemaReferenceId))
-                            {
-                                refCount++;
-                            }
-                            else if ( (fieldChain[i].schema["$ref"] === schemaReferenceId))
-                            {
-                                refCount++;
-                            }
-                        }
-                    }
-
-                    // use a higher limit for arrays, perhaps 10
-                    //var circular = (refCount > 1);
-                    var circular = (refCount > 10);
+                Alpaca.loadRefSchemaOptions(topSchema, topOptions, schemaRef, optionsRef, topConnector, schemaReferenceCacheFn, optionsReferenceCacheFn, function(err, itemSchema, itemOptions) {
 
                     var resolvedItemSchema = {};
                     if (originalItemSchema) {
                         Alpaca.mergeObject(resolvedItemSchema, originalItemSchema);
                     }
-                    if (itemSchema)
-                    {
+                    if (itemSchema) {
                         Alpaca.mergeObject(resolvedItemSchema, itemSchema);
                     }
-                    delete resolvedItemSchema.id;
+                    //delete resolvedItemSchema.id;
+                    if (schemaRef) {
+                        resolvedItemSchema["$ref"] = schemaRef;
+                    }
 
                     var resolvedItemOptions = {};
                     if (originalItemOptions) {
                         Alpaca.mergeObject(resolvedItemOptions, originalItemOptions);
                     }
-                    if (itemOptions)
-                    {
+                    if (itemOptions) {
                         Alpaca.mergeObject(resolvedItemOptions, itemOptions);
+                    }
+                    if (optionsRef) {
+                        resolvedItemOptions["$ref"] = optionsRef;
                     }
 
                     Alpaca.nextTick(function() {
-                        completionFunction(resolvedItemSchema, resolvedItemOptions, circular);
+                        completionFunction(resolvedItemSchema, resolvedItemOptions);
                     });
                 });
             }
@@ -800,6 +821,8 @@
                     if (!key) {
                         key = "";
                     }
+
+                    key = Alpaca.hashCode(key);
 
                     if (hash[key])
                     {
@@ -1027,6 +1050,82 @@
                 });
             }
 
+            //
+            // DRAG AND DROP
+            //
+
+            if (self.options.dragAndDrop)
+            {
+                // enable drag and drop
+                document.addEventListener("dragenter", function (event) {
+                    event.preventDefault();
+                }, false);
+    
+                document.addEventListener("dragover", function (event) {
+                    event.preventDefault();
+                }, false);
+    
+                $(self.getFieldEl()).off().on("drop", function(ev) {
+                    ev.preventDefault();
+
+                    var parentFieldId = ev.originalEvent.dataTransfer.getData("parentFieldId");
+                    if (parentFieldId == self.getId())
+                    {
+                        var closestItem = ev.target.closest(".alpaca-container-item[data-alpaca-container-item-parent-field-id='" + parentFieldId +  "']");
+                        if (closestItem) {
+                            var targetIndex = closestItem.dataset.alpacaContainerItemIndex;
+                            var sourceIndex = ev.originalEvent.dataTransfer.getData("sourceIndex");
+                            
+                            self.moveItem(sourceIndex, targetIndex);
+                            ev.stopPropagation();
+                        }
+                    }
+                });
+
+                var items = self.getFieldEl().find(".alpaca-container-item[data-alpaca-container-item-parent-field-id='" + self.getId() +  "']");
+                $(items).each(function(itemIndex) {
+                    var target = null;
+                    $(this).attr("draggable", true);
+                    $(this).off().on("mousedown", function(ev) 
+                    {
+                        ev.stopPropagation();
+
+                        target = ev.target;
+                    });
+                    $(this).on("dragstart", function(ev) 
+                    {
+                        ev.stopPropagation();
+
+                        // if this item's move icon contains the target
+                        var dragHandle = $(this).children(".alpaca-array-item-move")[0];
+                        if (dragHandle && dragHandle.contains(target)) 
+                        {
+                            var event = ev.originalEvent;
+                            event.dataTransfer.setData("sourceIndex", this.dataset.alpacaContainerItemIndex);
+                            event.dataTransfer.setData("parentFieldId", this.dataset.alpacaContainerItemParentFieldId);
+    
+                            // find droppable area and highlight
+                            $(this).siblings(".alpaca-container-item").each(function() {
+                                $(this).children(".alpaca-array-item-move").css({
+                                    "color": "#2CEAA3"
+                                });
+                            });
+                        }
+                        else 
+                        {
+                            ev.preventDefault();
+                        }
+                    });
+                    $(this).on("dragend", function(ev) 
+                    {
+                        ev.stopPropagation();
+
+                        $(".alpaca-array-item-move").css({
+                            "color": "#333"
+                        });
+                    });
+                });
+            }
 
             //
             // ACTIONBAR
@@ -1163,13 +1262,14 @@
         {
             var self = this;
 
-            self.resolveItemSchemaOptions(function(itemSchema, itemOptions, circular) {
+            self.resolveItemSchemaOptions(function(itemSchema, itemOptions, circularityCheck) {
 
                 // we only allow addition if the resolved schema isn't circularly referenced
                 // or the schema is optional
-                if (circular)
+                if (circularityCheck && circularityCheck.circular)
                 {
-                    return Alpaca.throwErrorWithCallback("Circular reference detected for schema: " + JSON.stringify(itemSchema), self.errorCallback);
+                    circularityCheck.object = self.top().options;
+                    return Alpaca.throwReferenceCircularityError(circularityCheck, self.errorCallback);
                 }
 
                 // how many children do we have currently?
@@ -1188,13 +1288,14 @@
         {
             var self = this;
 
-            self.resolveItemSchemaOptions(function(itemSchema, itemOptions, circular) {
+            self.resolveItemSchemaOptions(function(itemSchema, itemOptions, circularityCheck) {
 
                 // we only allow addition if the resolved schema isn't circularly referenced
                 // or the schema is optional
-                if (circular)
+                if (circularityCheck && circularityCheck.circular)
                 {
-                    return Alpaca.throwErrorWithCallback("Circular reference detected for schema: " + JSON.stringify(itemSchema), self.errorCallback);
+                    circularityCheck.object = self.top().options;
+                    return Alpaca.throwReferenceCircularityError(circularityCheck, self.errorCallback);
                 }
 
                 var arrayValues = self.getValue();
@@ -1302,6 +1403,9 @@
 
             if (self._validateEqualMaxItems())
             {
+                // propagate up with "before_nested_change"
+                self.triggerWithPropagation("before_nested_change");
+
                 self.createItem(index, schema, options, data, function(item) {
 
                     // register the child
@@ -1325,9 +1429,17 @@
                         // trigger update
                         self.triggerUpdate();
 
+                        self.onChange.call(self);
+                        self.triggerWithPropagation("change");
+
+                        // propagate up with "after_nested_change"
+                        self.triggerWithPropagation("after_nested_change");
+
                         if (callback)
                         {
-                            callback(item);
+                            Alpaca.nextTick(function() {
+                                callback(item);
+                            });
                         }
 
                     });
@@ -1361,13 +1473,17 @@
 
          * @param {Number} childIndex index of the child to be removed
          * @param [Function] callback called after the child is removed
+         * @param [boolean] force whether to force the removal
          */
-        removeItem: function(childIndex, callback)
+        removeItem: function(childIndex, callback, force)
         {
             var self = this;
 
-            if (this._validateEqualMinItems())
+            if (this._validateEqualMinItems() || force)
             {
+                // propagate up with "before_nested_change"
+                self.triggerWithPropagation("before_nested_change");
+
                 // unregister the child
                 self.unregisterChild(childIndex);
 
@@ -1389,9 +1505,17 @@
                     // trigger update
                     self.triggerUpdate();
 
+                    self.onChange.call(self);
+                    self.triggerWithPropagation("change");
+
+                    // propagate up with "after_nested_change"
+                    self.triggerWithPropagation("after_nested_change");
+
                     if (callback)
                     {
-                        callback();
+                        Alpaca.nextTick(function() {
+                            callback();
+                        });
                     }
 
                 });
@@ -1461,17 +1585,24 @@
 
             var onComplete = function()
             {
+                // propagate up with "before_nested_change"
+                self.triggerWithPropagation("before_nested_change");
+
                 var adjustedTargetIndex = targetIndex;
                 if (sourceIndex < targetIndex) {
                     adjustedTargetIndex--;
                 }
 
-                // splice out child
-                var child = self.children.splice(sourceIndex, 1)[0];
-                self.children.splice(adjustedTargetIndex, 0, child);
+                var newData = self.getValue();
+                var sourceChild = newData[sourceIndex];
+                var targetChild = newData[targetIndex];
 
-                // set data and refresh
-                self.data = self.getValue();
+
+                newData[sourceIndex] = targetChild;
+                newData[targetIndex] = sourceChild;
+
+                self.setValue(newData);
+
                 self.refresh(function() {
 
                     // refresh validation state
@@ -1483,9 +1614,17 @@
                     // dispatch event: move
                     self.trigger("move");
 
+                    self.onChange.call(self);
+                    self.triggerWithPropagation("change");
+
+                    // propagate up with "after_nested_change"
+                    self.triggerWithPropagation("after_nested_change");
+
                     if (callback)
                     {
-                        callback();
+                        Alpaca.nextTick(function() {
+                            callback();
+                        });
                     }
 
                 });
@@ -1585,14 +1724,16 @@
 
             var onComplete = function()
             {
-                var sourceChild = self.children[sourceIndex];
-                var targetChild = self.children[targetIndex];
+                var newData = self.getValue();
+                var sourceChild = newData[sourceIndex];
+                var targetChild = newData[targetIndex];
 
-                self.children[sourceIndex] = targetChild;
-                self.children[targetIndex] = sourceChild;
 
-                // copy back data and refresh
-                self.data = self.getValue();
+                newData[sourceIndex] = targetChild;
+                newData[targetIndex] = sourceChild;
+
+                self.setValue(newData);
+
                 self.refresh(function() {
 
                     // refresh validation state
@@ -1606,7 +1747,9 @@
 
                     if (callback)
                     {
-                        callback();
+                        Alpaca.nextTick(function() {
+                            callback();
+                        });
                     }
 
                 });
@@ -1735,6 +1878,12 @@
         getSchemaOfOptions: function() {
             var properties = {
                 "properties": {
+                    "dragAndDrop": {
+                        "title": "Drag and Drop",
+                        "description": "If true, drag and drop is enabled for array items.",
+                        "type": "boolean",
+                        "default": false
+                    },
                     "toolbarSticky": {
                         "title": "Sticky Toolbar",
                         "description": "If true, the array item toolbar will always be enabled.  If false, the toolbar is always disabled.  If undefined or null, the toolbar will appear when hovered over.",
@@ -1857,6 +2006,9 @@
         getOptionsForOptions: function() {
             return Alpaca.merge(this.base(), {
                 "fields": {
+                    "dragAndDrop": {
+                        "type": "checkbox"
+                    },
                     "toolbarSticky": {
                         "type": "checkbox"
                     },

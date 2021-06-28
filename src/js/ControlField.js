@@ -301,20 +301,6 @@
             {
                 var self = this;
 
-                /*
-                 // store reference to the label
-                 this.labelDiv = $(this.field).find(".alpaca-controlfield-label");
-                 var labelDiv = $('.alpaca-controlfield-label', this.outerEl);
-                 if (labelDiv.length) {
-                 this.labelDiv = labelDiv;
-                 }
-
-                 var helperDiv = $('.alpaca-controlfield-helper', this.outerEl);
-                 if (helperDiv.length) {
-                 this.helperDiv = helperDiv;
-                 }
-                 */
-
                 this.base(function() {
 
                     callback();
@@ -451,8 +437,16 @@
 
                     // we use a timeout here because we want this to run AFTER control click handlers
                     setTimeout(function() {
+
+                        // propagate up with "before_nested_change"
+                        self.triggerWithPropagation("before_nested_change", e);
+
                         self.onChange.call(self, e);
                         self.triggerWithPropagation("change", e);
+
+                        // propagate up with "after_nested_change"
+                        self.triggerWithPropagation("after_nested_change", e);
+
                     }, 200);
                 });
 
@@ -514,9 +508,6 @@
 
                         // propagate up with "before_nested_change"
                         self.triggerWithPropagation("before_nested_change", e);
-
-                        // propagate up with "nested_change"
-                        //self.triggerWithPropagation("nested_change", e);
                     }
 
                     return x;

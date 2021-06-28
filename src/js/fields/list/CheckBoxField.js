@@ -21,8 +21,6 @@
 
             var self = this;
 
-            self.base();
-
             if (typeof(self.options.multiple) === "undefined")
             {
                 self.options.multiple = false;
@@ -36,6 +34,8 @@
                     self.options.multiple = true;
                 }
             }
+
+            self.base();
 
             // in single mode, blank out rightlabel
             if (!self.options.multiple)
@@ -131,7 +131,9 @@
             else
             {
                 var checkbox = $(self.getFieldEl()).find("input:checkbox");
-                if (self.data.length > 0)
+                var vals = self.data.map(d => d.value);
+                var check = vals.includes(true);
+                if (check)
                 {
                     Alpaca.checked(checkbox, true);
                 }

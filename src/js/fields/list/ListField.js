@@ -59,6 +59,18 @@
                 self.options.useDataSourceAsEnum = true;
             }
 
+            if (typeof(self.options.multiple) === "undefined")
+            {
+                if (self.schema["type"] && self.schema["type"] === "array")
+                {
+                    self.options.multiple = true;
+                }
+                else
+                {
+                    self.options.multiple = false;
+                }
+            }
+
             // make sure we convert any incoming data to our expected format
             self.setValue(this.data, true);
         },
@@ -110,7 +122,7 @@
                     displayableTexts.push(text);
                 }
             }
-
+            
             model.displayableText = displayableTexts.join(", ");
         },
 
@@ -132,6 +144,28 @@
                             self.selectOptions[i].selected = true;
                         }
                     }
+                }
+
+                // if emptySelectFirst and we have options but no data, then auto-select first item in the options list
+                if (self.data.length === 0 && self.options.emptySelectFirst && self.selectOptions.length > 0)
+                {
+                    self.selectOptions[0].selected = true;
+                    self.data = [self.selectOptions[0]];
+
+                    self.updateObservable();
+                    self.triggerUpdate();
+                    self.triggerWithPropagation("change");
+                }
+
+                // likewise, we auto-assign first pick if field required
+                if (self.data.length === 0 && self.isRequired() && self.selectOptions.length > 0)
+                {
+                    self.selectOptions[0].selected = true;
+                    self.data = [self.selectOptions[0]];
+
+                    self.updateObservable();
+                    self.triggerUpdate();
+                    self.triggerWithPropagation("change");
                 }
 
                 callback();
@@ -237,8 +271,16 @@
                 for (var i = 0; i < this.data.length; i++) {
                     array.push(this.data[i].value);
                 }
-
-                val = array.join(",");
+                
+                // Use custom join function if provided
+                if (self.options.join && Alpaca.isFunction(self.options.join))
+                {
+                    val = self.options.join(array);
+                }
+                else
+                {
+                    val = array.join(",");
+                }
             }
             else if (self.schema.type === "number")
             {
@@ -249,7 +291,15 @@
             }
             else if (self.schema.type === "boolean")
             {
-                val = (this.data.length > 0);
+                if (this.data.length > 0)
+                {
+                    var vals = this.data.map(d => d.value);
+                    val = vals.includes(true);
+                }
+                else
+                {
+                    val = false;
+                }
             }
             else if (self.schema.type === "array")
             {
@@ -329,14 +379,33 @@
             }
             else if (Alpaca.isString(val))
             {
-                values = val.split(",");
-                for (var i = 0; i < values.length; i++)
+                if (self.options.multiple)
                 {
-                    values[i] = values[i].trim();
-                    values[i] = {
-                        "text": values[i],
-                        "value": values[i]
-                    };
+                    // Use custom split function, if defined
+                    if (self.options.split && Alpaca.isFunction(self.options.split))
+                    {
+                        values = self.options.split(val);
+                    }
+                    else
+                    {
+                        values = val.split(",");
+                    }
+
+                    for (var i = 0; i < values.length; i++)
+                    {
+                        values[i] = values[i].trim();
+                        values[i] = {
+                            "text": values[i],
+                            "value": values[i]
+                        };
+                    }
+                }
+                else
+                {
+                    values.push({
+                        "text": val,
+                        "value": val
+                    });
                 }
 
                 handled = true;
@@ -374,6 +443,11 @@
                     } else if (Alpaca.isNumber(val[i])) {
                         values.push({
                             "text": "" + val[i],
+                            "value": val[i]
+                        });
+                    } else if (Alpaca.isBoolean(val[i])) { 
+                        values.push({
+                            "text": "",
                             "value": val[i]
                         });
                     } else {
@@ -568,6 +642,16 @@
                         "description": "Whether to constrain the field's schema enum property to the values that come back from the data source.",
                         "type": "boolean",
                         "default": true
+                    },
+                    "split": {
+                        "title": "Split Function",
+                        "type": "function",
+                        "description": "For multiple select lists. Defines a f(a) for how data strings should be split into individual values. A join function should also be defined which reverses this function."
+                    },
+                    "join": {
+                        "title": "Join Function",
+                        "type": "function",
+                        "description": "For multiple select lists. Defines a f(a) for how selected options should be combined into a single string. A split function should also be defined which reverses this function."
                     }
                 }
             });

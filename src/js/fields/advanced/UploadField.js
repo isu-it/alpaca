@@ -106,6 +106,12 @@
                             self.triggerWithPropagation("change");
                             setTimeout(function() {
                                 self.refreshUIState();
+
+                                if (self.options.afterFileUploadRemove)
+                                {
+                                    self.options.afterFileUploadRemove.call(self, row);
+                                }
+
                             }, 200);
                         });
                     });
@@ -257,6 +263,10 @@
             {
                 self.options.errorHandler = function(messages)
                 {
+                    if (!messages) {
+                        messages = ["An error occurred, please try again"];
+                    }
+
                     alert(messages.join("\n"));
                 };
             }
@@ -450,27 +460,32 @@
              * @param e
              * @param data
              */
-            fileUploadConfig["progressall"] = function (e, data) {
+            if (self.options.progressall) {
+                fileUploadConfig["progressall"] = self.options.progressall;
+            }
+            else {
+                fileUploadConfig["progressall"] = function (e, data) {
 
-                var showProgressBar = false;
-                if (data.loaded < data.total)
-                {
-                    showProgressBar = true;
-                }
-                if (showProgressBar)
-                {
-                    $(el).find(".progress").css("display", "block");
-                    var progress = parseInt(data.loaded / data.total * 100, 10);
-                    $('#progress .progress-bar').css(
-                        'width',
-                        progress + '%'
-                    );
-                }
-                else
-                {
-                    $(el).find(".progress").css("display", "none");
-                }
-            };
+                    var showProgressBar = false;
+                    if (data.loaded < data.total)
+                    {
+                        showProgressBar = true;
+                    }
+                    if (showProgressBar)
+                    {
+                        $(el).find(".progress").css("display", "block");
+                        var progress = parseInt(data.loaded / data.total * 100, 10);
+                        $('#progress .progress-bar').css(
+                            'width',
+                            progress + '%'
+                        );
+                    }
+                    else
+                    {
+                        $(el).find(".progress").css("display", "none");
+                    }
+                };
+            }
 
             // some limit checks
             fileUploadConfig["add"] = function(e, data) {
@@ -649,6 +664,12 @@
                     if (i === data.files.length) // jshint ignore:line
                     {
                         self.setValueAsArray(array);
+
+                        if (self.options.afterFileUploadDone)
+                        {
+                            self.options.afterFileUploadDone.call(self, data);
+                        }
+
                         return;
                     }
 
@@ -671,6 +692,11 @@
              */
             fileUpload.bind("fileuploadfail", function(e, data) {
                 self.onUploadFail(data);
+
+                if (self.options.afterFileUploadFail)
+                {
+                    self.options.afterFileUploadFail.call(self, data);
+                }
             });
 
 
@@ -679,6 +705,12 @@
              */
             fileUpload.bind("fileuploadalways", function(e, data) {
                 self.refreshUIState();
+
+                if (self.options.afterFileUploadAlways)
+                {
+                    self.options.afterFileUploadAlways.call(self, data);
+                }
+
             });
 
             // allow for extension
@@ -897,10 +929,12 @@
                 }
 
                 self.convertDescriptorToFile(descriptors[i], function(err, file) {
+
                     if (file)
                     {
                         files.push(file);
                     }
+
                     f(i+1);
                 });
             };
@@ -1125,7 +1159,35 @@
 
             if (self.options.errorHandler)
             {
-                self.options.errorHandler.call(self, data);
+                var messages = ["Failed to upload file"];
+
+                if (data && data.errorThrown)
+                {
+                    messages = [data.errorThrown];
+                }
+
+                if (data && data.jqXHR)
+                {
+                    if (data.jqXHR.responseText)
+                    {
+                        messages = [data.jqXHR.responseText];
+
+                        try
+                        {
+                            var json = JSON.parse("" + data.jqXHR.responseText);
+                            if (json.message)
+                            {
+                                messages = [json.message];
+                            }
+                        }
+                        catch (e)
+                        {
+                            // swallow
+                        }
+                    }
+                }
+
+                self.options.errorHandler.call(self, messages);
             }
 
             // if "error" not filled in for each file, do our best here

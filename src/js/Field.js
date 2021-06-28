@@ -101,8 +101,26 @@
                 delete this.options.helper;
             }
 
+            // options.helpersPosition defaults to above
+            if (!this.options.helpersPosition) {
+                this.options.helpersPosition = this.options.helperPosition
+            }
+            if (!this.options.helpersPosition) {
+                this.options.helpersPosition = Alpaca.defaultHelpersPosition;
+            }
+
             if (Alpaca.isEmpty(this.options.readonly) && !Alpaca.isEmpty(this.schema.readonly)) {
                 this.options.readonly = this.schema.readonly;
+            }
+
+            // in case they put "default" on options
+            if (typeof(this.schema.default) === "undefined")
+            {
+                if (typeof(this.options.default) !== "undefined")
+                {
+                    this.schema.default = this.options.default;
+                    delete this.options.default;
+                }
             }
 
             // if data is empty, then we check whether we can fall back to a default value
@@ -429,9 +447,9 @@
                 {
                     for (var i = 0; i < this.children.length; i++)
                     {
-                        var child = this.children[i];
+                        var child1 = this.children[i];
 
-                        child.triggerWithPropagation.call(child, name, event, direction);
+                        child1.triggerWithPropagation.call(child1, name, event, direction);
                     }
                 }
 
@@ -443,11 +461,11 @@
                 // do any children first
                 if (this.children && this.children.length > 0)
                 {
-                    for (var i = 0; i < this.children.length; i++)
+                    for (var z = 0; z < this.children.length; z++)
                     {
-                        var child = this.children[i];
+                        var child2 = this.children[z];
 
-                        child.triggerWithPropagation.call(child, name, event, "down");
+                        child2.triggerWithPropagation.call(child2, name, event, "down");
                     }
                 }
 
@@ -573,16 +591,24 @@
                 // has path?
                 if (this.parent && this.parent.name && this.path)
                 {
-                    var lastSegment = this.path.substring(this.path.lastIndexOf('/') + 1);
-                    if (lastSegment.indexOf("[") !== -1 && lastSegment.indexOf("]") !== -1)
+                    if (this.propertyId)
                     {
-                        lastSegment = lastSegment.substring(lastSegment.indexOf("[") + 1, lastSegment.indexOf("]"));
-                    }
-
-                    if (lastSegment)
-                    {
-                        this.name = this.parent.name + "_" + lastSegment;
+                        this.name = this.parent.name + "_" + this.propertyId;
                         this.nameCalculated = true;
+                    }
+                    else
+                    {
+                        var lastSegment = this.path.substring(this.path.lastIndexOf('/') + 1);
+                        if (lastSegment.indexOf("[") !== -1 && lastSegment.indexOf("]") !== -1)
+                        {
+                            lastSegment = lastSegment.substring(lastSegment.indexOf("[") + 1, lastSegment.indexOf("]"));
+                        }
+    
+                        if (lastSegment)
+                        {
+                            this.name = this.parent.name + "_" + lastSegment;
+                            this.nameCalculated = true;
+                        }
                     }
                 }
                 else
@@ -617,6 +643,7 @@
                 {
                     form = new Alpaca.Form(self.domEl, this.options.form, self.view.id, self.connector, self.errorCallback);
                 }
+
                 form.render(function(form) {
 
                     // NOTE: form is the form instance (not the jquery element)
@@ -847,8 +874,11 @@
                 {
                     $(this.field).addClass("alpaca-required");
 
-                    // CALLBACK: "required"
-                    self.fireCallback("required");
+                    // CALLBACK: "required" (only for non-container fields)
+                    if (!self.isContainer())
+                    {
+                        self.fireCallback("required");
+                    }
                 }
                 else
                 {
@@ -975,7 +1005,7 @@
 
                 // we bind data if we're in "edit" mode
                 // typically, we don't bind data if we're in "create" or any other mode
-                if (this.view.type && this.view.type === 'edit')
+                if (this.view.type && (this.view.type === 'edit' || this.view.type === 'create'))
                 {
                     this.bindData();
                 }
@@ -1002,6 +1032,7 @@
             if (this.options.hidden)
             {
                 this.field.hide();
+                this._isHidden = true;
             }
 
             var defaultHideInitValidationError = (this.view.type === 'create') && !this.refreshed;
@@ -1086,7 +1117,7 @@
                     var oldClasses = $(oldField).attr("class");
                     if (oldClasses) {
                         $.each(oldClasses.split(" "), function(i, v) {
-                            if (v && !v.indexOf("alpaca-") === 0) {
+                            if (v && v.indexOf("alpaca-") !== 0) {
                                 $(self.field).addClass(v);
                             }
                         });
@@ -1390,8 +1421,6 @@
          */
         refreshValidationState: function(validateChildren, cb)
         {
-            // console.log("Call refreshValidationState: " + this.path);
-
             var self = this;
 
             // run validation context compilation for ourselves and optionally any children
@@ -1401,14 +1430,11 @@
             // constructs an async function to validate context for a given field
             var functionBuilder = function(field, contexts)
             {
-                return function(callback)
+                return function(done)
                 {
-                    // run on the next tick
-                    Alpaca.nextTick(function() {
-                        Alpaca.compileValidationContext(field, function(context) {
-                            contexts.push(context);
-                            callback();
-                        });
+                    Alpaca.compileValidationContext(field, function(context) {
+                        contexts.push(context);
+                        done();
                     });
                 };
             };
@@ -1750,6 +1776,8 @@
         {
             if (this.options && this.options.hidden)
             {
+                this._isHidden = true;
+
                 // if the hidden option is on, we're always hidden
                 return;
             }
@@ -1764,6 +1792,8 @@
 
                 // CALLBACK: "show"
                 this.fireCallback("show");
+
+                this._isHidden = false;
             }
         },
 
@@ -1785,6 +1815,8 @@
 
             // CALLBACK: "hide"
             this.fireCallback("hide");
+
+            this._isHidden = true;
         },
 
         onHide: function()
@@ -1805,8 +1837,14 @@
             return !this.isHidden();
         },
 
-        isHidden: function() {
-            return ("none" === $(this.field).css("display"));
+        isHidden: function()
+        {
+            if (typeof(this._isHidden) === "undefined")
+            {
+                this._isHidden = ("none" === $(this.field).css("display"));
+            }
+
+            return this._isHidden;
         },
 
         /**
@@ -1866,7 +1904,7 @@
             {
                 newValue = this.data;
             }
-
+            
             this.setValue(newValue);
         },
 
@@ -2545,6 +2583,13 @@
                             "type": "string"
                         }
                     },
+                    "helpersPosition": {
+                        "title": "Helpers Position",
+                        "description": "Defines the placement location of the helper text relative to the control (either 'above' or 'below')",
+                        "type": "string",
+                        "enum": ["above", "below"],
+                        "default": "below"
+                    },
                     "fieldClass": {
                         "title": "CSS class",
                         "description": "Specifies one or more CSS classes that should be applied to the dom element for this field once it is rendered.  Supports a single value, comma-delimited values, space-delimited values or values passed in as an array.",
@@ -2697,6 +2742,10 @@
                         "items": {
                             "type": "textarea"
                         }
+                    },
+                    "helpersPosition": {
+                        "type": "text",
+                        "optionLabels": ["Above", "Below"]
                     },
                     "fieldClass": {
                         "type": "text"
